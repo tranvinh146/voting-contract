@@ -51,8 +51,8 @@ impl VotingContract {
             self.total_voted_stake = 0;
             for (account_id, _) in votes {
                 let account_current_stake = env::validator_stake(&account_id);
-                self.total_voted_stake += account_current_stake;
                 if account_current_stake > 0 {
+                    self.total_voted_stake += account_current_stake;
                     self.votes.insert(account_id, account_current_stake);
                 }
             }
@@ -61,14 +61,14 @@ impl VotingContract {
         }
     }
 
-    /// Check whether the voting has ended`.
+    /// Check whether the voting has ended.
     fn check_result(&mut self) {
         assert!(
             self.result.is_none(),
             "check result is called after result is already set"
         );
         let total_stake = env::validator_total_stake();
-        if self.total_voted_stake > 2 * total_stake / 3 {
+        if self.total_voted_stake > total_stake / 2 {
             self.result = Some(U64::from(env::block_timestamp()));
         }
     }
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "is not a validator")]
     fn test_nonvalidator_cannot_vote() {
-        let context = get_context("bob.near".to_string());
+        let context = get_context("vinh.near".to_string());
         let validators = HashMap::from_iter(
             vec![
                 ("alice_near".to_string(), 100),
@@ -207,7 +207,7 @@ mod tests {
         );
         let mut contract = VotingContract::new();
 
-        for i in 0..7 {
+        for i in 0..=5 {
             let mut context = get_context(format!("test{}", i));
             testing_env!(
                 context.clone(),
@@ -234,7 +234,7 @@ mod tests {
                     .collect::<HashMap<_, _>>()
             );
             assert_eq!(contract.votes.len() as u128, i + 1);
-            if i < 6 {
+            if i < 5 {
                 assert!(contract.result.is_none());
             } else {
                 assert!(contract.result.is_some());
@@ -256,7 +256,7 @@ mod tests {
         );
         let mut contract = VotingContract::new();
 
-        for i in 0..7 {
+        for i in 0..=5 {
             let context = get_context_with_epoch_height(format!("test{}", i), i);
             testing_env!(
                 context,
@@ -266,7 +266,7 @@ mod tests {
             );
             contract.vote(true);
             assert_eq!(contract.votes.len() as u64, i + 1);
-            if i < 6 {
+            if i < 5 {
                 assert!(contract.result.is_none());
             } else {
                 assert!(contract.result.is_some());
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn test_validator_stake_change() {
         let mut validators = HashMap::from_iter(vec![
-            ("test1".to_string(), 40),
+            ("test1".to_string(), 20),
             ("test2".to_string(), 10),
             ("test3".to_string(), 10),
         ]);
@@ -331,7 +331,7 @@ mod tests {
     #[test]
     fn test_validator_kick_out() {
         let mut validators = HashMap::from_iter(vec![
-            ("test1".to_string(), 40),
+            ("test1".to_string(), 20),
             ("test2".to_string(), 10),
             ("test3".to_string(), 10),
         ]);
@@ -345,7 +345,7 @@ mod tests {
 
         let mut contract = VotingContract::new();
         contract.vote(true);
-        assert_eq!((contract.get_total_voted_stake().0).0, 40);
+        assert_eq!((contract.get_total_voted_stake().0).0, 20);
         validators.remove(&"test1".to_string());
         let context = get_context_with_epoch_height("test2".to_string(), 2);
         testing_env!(
